@@ -49,3 +49,7 @@ venv.bak/
 # API
 api/__pycache__/
 api/*.pyc
+/lib/generated/prisma
+
+# Database backups
+/backups/

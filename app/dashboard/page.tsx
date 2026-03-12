@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Settings, Save, Eye, MapPin } from 'lucide-react'
+import { Settings, Save, LogOut, MapPin, Eye, BarChart3 } from 'lucide-react'
 
 interface RestaurantSchedule {
   breakfast: { start: string; end: string; available: boolean }
@@ -137,10 +138,11 @@ const defaultSettings: { [key: string]: HotelSettings } = {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [selectedHotel, setSelectedHotel] = useState<string>('sindbad-hammamet')
   const [settings, setSettings] = useState<{ [key: string]: HotelSettings }>(defaultSettings)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [activeTab, setActiveTab] = useState<'services' | 'events' | 'contact' | 'amenities'>('services')
+  const [activeTab, setActiveTab] = useState<'services' | 'events' | 'contact' | 'amenities' | 'attractions'>('services')
   const [newEvent, setNewEvent] = useState<Partial<SpecialEvent>>({
     title: '',
     description: '',
@@ -150,21 +152,14 @@ export default function AdminDashboard() {
     price: ''
   })
 
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken')
+    router.push('/admin/login')
+  }
+
   useEffect(() => {
     const loadSettings = async () => {
-      try {
-        // Try to load from API first
-        const response = await fetch('/api/hotel-settings')
-        if (response.ok) {
-          const apiSettings = await response.json()
-          setSettings(apiSettings)
-          return
-        }
-      } catch (error) {
-        console.error('Error loading from API:', error)
-      }
-      
-      // Fallback to localStorage
+      // Load from localStorage only (don't use API - different data structure)
       const savedSettings = localStorage.getItem('hotelSettings')
       if (savedSettings) {
         try {
@@ -182,24 +177,11 @@ export default function AdminDashboard() {
     setSaveStatus('saving')
     
     try {
-      // Save to localStorage for immediate UI updates
+      // Save to localStorage only (API is disabled for direct modifications)
       localStorage.setItem('hotelSettings', JSON.stringify(settings))
       
-      // Save to backend API for chatbot access
-      const response = await fetch('/api/hotel-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings)
-      })
-      
-      if (response.ok) {
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } else {
-        throw new Error('Failed to save to server')
-      }
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (error) {
       console.error('Error saving settings:', error)
       setSaveStatus('idle')
@@ -266,129 +248,236 @@ export default function AdminDashboard() {
 
   const currentHotel = settings[selectedHotel]
 
+  // Only show loading if currentHotel is undefined
+  if (!currentHotel) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <Settings className="w-8 h-8 text-white" />
+          </div>
+          <p className="text-gray-600">Loading hotel settings...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Floating Particles */}
+        <div className="particles opacity-30">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="particle" />
+          ))}
+        </div>
+        
+        {/* Gradient Orbs */}
+        <div className="absolute top-20 right-10 w-96 h-96 bg-gradient-to-r from-blue-200 to-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-float"></div>
+        <div className="absolute bottom-20 left-10 w-80 h-80 bg-gradient-to-r from-purple-200 to-blue-200 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-float" style={{ animationDelay: '3s' }}></div>
+      </div>
+
+      <header className="glass backdrop-blur-md shadow-glass border-b border-white/20 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+              <motion.div 
+                className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-glow"
+                whileHover={{ scale: 1.1, rotate: 180 }}
+                transition={{ duration: 0.3 }}
+              >
                 <Settings className="w-6 h-6 text-white" />
-              </div>
+              </motion.div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Hotel Admin Dashboard</h1>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Hotel Admin Dashboard</h1>
                 <p className="text-gray-600">Manage your hotel settings and information</p>
               </div>
             </div>
             
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={saveSettings}
-              disabled={saveStatus === 'saving'}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold transition-all ${
-                saveStatus === 'saved' 
-                  ? 'bg-green-500 text-white' 
-                  : saveStatus === 'saving'
-                  ? 'bg-gray-400 text-white cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              <Save className="w-5 h-5" />
-              <span>
-                {saveStatus === 'saving' ? 'Saving...' : 
-                 saveStatus === 'saved' ? 'Saved!' : 'Save Changes'}
-              </span>
-            </motion.button>
+            <div className="flex items-center space-x-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push('/admin/analytics')}
+                className="flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:shadow-purple-500/25 transition-all shadow-lg"
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span>Analytics</span>
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={saveSettings}
+                disabled={saveStatus === 'saving'}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
+                  saveStatus === 'saved' 
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-green-500/25' 
+                    : saveStatus === 'saving'
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:shadow-blue-500/25 shadow-glow'
+                }`}
+              >
+                <motion.div
+                  animate={saveStatus === 'saving' ? { rotate: 360 } : {}}
+                  transition={{ duration: 1, repeat: saveStatus === 'saving' ? Infinity : 0, ease: "linear" }}
+                >
+                  <Save className="w-5 h-5" />
+                </motion.div>
+                <span>
+                  {saveStatus === 'saving' ? 'Saving...' : 
+                   saveStatus === 'saved' ? 'Saved!' : 'Save Changes'}
+                </span>
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-red-500/25 transition-all shadow-lg"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </motion.button>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
+      <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Select Hotel</h2>
           <div className="grid md:grid-cols-3 gap-4">
-            {Object.entries(settings).map(([hotelId, hotel]) => (
+            {Object.entries(settings).map(([hotelId, hotel], index) => (
               <motion.button
                 key={hotelId}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedHotel(hotelId)}
-                className={`p-4 rounded-xl border-2 transition-all ${
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + index * 0.1 }}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
                   selectedHotel === hotelId
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    ? 'border-blue-500 glass backdrop-blur-md shadow-glow'
+                    : 'border-white/20 glass backdrop-blur-sm hover:border-blue-300 hover:shadow-lg'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <MapPin className="w-5 h-5 text-blue-500" />
-                  <span className="font-semibold">{hotel.name}</span>
+                  <motion.div
+                    animate={selectedHotel === hotelId ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <MapPin className="w-5 h-5 text-blue-500" />
+                  </motion.div>
+                  <span className="font-semibold text-gray-800">{hotel.name}</span>
                 </div>
               </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+        <motion.div 
+          className="glass backdrop-blur-md rounded-xl shadow-glass p-6 border border-white/20"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <div className="flex space-x-1 mb-6 glass backdrop-blur-sm p-1 rounded-lg border border-white/20">
             {[
               { id: 'services', label: 'Services & Hours', icon: '🕐' },
               { id: 'events', label: 'Special Events', icon: '🎉' },
               { id: 'contact', label: 'Contact Info', icon: '📞' },
-              { id: 'amenities', label: 'Amenities', icon: '🏨' }
-            ].map((tab) => (
-              <button
+              { id: 'amenities', label: 'Amenities', icon: '🏨' },
+              { id: 'attractions', label: 'Nearby Attractions', icon: '🗺️' }
+            ].map((tab, index) => (
+              <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md transition-all ${
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
+                className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md transition-all duration-300 ${
                   activeTab === tab.id
-                    ? 'bg-white shadow-sm text-blue-600 font-semibold'
-                    : 'text-gray-600 hover:text-gray-800'
+                    ? 'glass backdrop-blur-md shadow-glow text-blue-600 font-semibold border border-blue-200/50'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/20'
                 }`}
               >
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
-              </button>
+              </motion.button>
             ))}
           </div>
 
           {activeTab === 'services' && (
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold mb-4">Services & Operating Hours</h3>
+            <motion.div 
+              className="space-y-6"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h3 className="text-xl font-semibold mb-4 text-gray-800">Services & Operating Hours</h3>
               
               {/* Restaurant Section */}
-              <div className="border rounded-lg p-4">
+              <motion.div 
+                className="glass backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:shadow-lg transition-all duration-300"
+                whileHover={{ scale: 1.01 }}
+              >
                 <h4 className="font-semibold mb-3 flex items-center space-x-2">
                   <span>🍽️</span>
                   <span>Restaurant</span>
                 </h4>
                 <div className="space-y-4">
-                  {(['breakfast', 'lunch', 'dinner'] as const).map((meal) => (
-                    <div key={meal} className="bg-gray-50 p-3 rounded-lg">
+                  {(['breakfast', 'lunch', 'dinner'] as const).map((meal, index) => (
+                    <motion.div 
+                      key={meal} 
+                      className="glass backdrop-blur-sm p-3 rounded-lg border border-white/10"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium capitalize">{meal}</span>
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
                           onClick={() => updateHotelSettings(selectedHotel, {
                             restaurant: {
                               ...currentHotel.restaurant,
                               [meal]: { ...currentHotel.restaurant[meal], available: !currentHotel.restaurant[meal].available }
                             }
                           })}
-                          className={`px-3 py-1 rounded-full text-sm ${
-                            currentHotel.restaurant[meal].available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          className={`px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+                            currentHotel.restaurant[meal].available 
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-400 text-white shadow-green-400/25' 
+                              : 'bg-gradient-to-r from-red-400 to-pink-400 text-white shadow-red-400/25'
                           }`}
                         >
                           {currentHotel.restaurant[meal].available ? 'Open' : 'Closed'}
-                        </button>
+                        </motion.button>
                       </div>
                       {currentHotel.restaurant[meal].available && (
-                        <div className="flex space-x-4">
+                        <motion.div 
+                          className="flex space-x-4"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          transition={{ duration: 0.3 }}
+                        >
                           <div className="flex-1">
                             <label className="block text-sm text-gray-600 mb-1">Start Time</label>
                             <input
                               type="time"
                               value={currentHotel.restaurant[meal].start}
                               onChange={(e) => updateTimeSlot('restaurant', `${meal}.start`, e.target.value)}
-                              className="w-full px-3 py-2 border rounded-md"
+                              className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                             />
                           </div>
                           <div className="flex-1">
@@ -397,44 +486,56 @@ export default function AdminDashboard() {
                               type="time"
                               value={currentHotel.restaurant[meal].end}
                               onChange={(e) => updateTimeSlot('restaurant', `${meal}.end`, e.target.value)}
-                              className="w-full px-3 py-2 border rounded-md"
+                              className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                             />
                           </div>
-                        </div>
+                        </motion.div>
                       )}
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
 
               {/* Spa Section */}
-              <div className="border rounded-lg p-4">
+              <motion.div 
+                className="glass backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:shadow-lg transition-all duration-300"
+                whileHover={{ scale: 1.01 }}
+              >
                 <h4 className="font-semibold mb-3 flex items-center space-x-2">
                   <span>🧘</span>
                   <span>Spa</span>
                 </h4>
                 <div className="flex items-center justify-between mb-3">
                   <span>Spa Available</span>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => updateHotelSettings(selectedHotel, {
                       spa: { ...currentHotel.spa, available: !currentHotel.spa.available }
                     })}
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      currentHotel.spa.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    className={`px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+                      currentHotel.spa.available 
+                        ? 'bg-gradient-to-r from-green-400 to-emerald-400 text-white shadow-green-400/25' 
+                        : 'bg-gradient-to-r from-red-400 to-pink-400 text-white shadow-red-400/25'
                     }`}
                   >
                     {currentHotel.spa.available ? 'Open' : 'Closed'}
-                  </button>
+                  </motion.button>
                 </div>
                 {currentHotel.spa.available && (
-                  <div className="flex space-x-4">
+                  <motion.div 
+                    className="flex space-x-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <div className="flex-1">
                       <label className="block text-sm text-gray-600 mb-1">Open Time</label>
                       <input
                         type="time"
                         value={currentHotel.spa.openTime}
                         onChange={(e) => updateTimeSlot('spa', 'openTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
                     <div className="flex-1">
@@ -443,41 +544,53 @@ export default function AdminDashboard() {
                         type="time"
                         value={currentHotel.spa.closeTime}
                         onChange={(e) => updateTimeSlot('spa', 'closeTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
 
               {/* Pool Section */}
-              <div className="border rounded-lg p-4">
+              <motion.div 
+                className="glass backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:shadow-lg transition-all duration-300"
+                whileHover={{ scale: 1.01 }}
+              >
                 <h4 className="font-semibold mb-3 flex items-center space-x-2">
                   <span>🏊</span>
                   <span>Pool</span>
                 </h4>
                 <div className="flex items-center justify-between mb-3">
                   <span>Pool Available</span>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => updateHotelSettings(selectedHotel, {
                       pool: { ...currentHotel.pool, available: !currentHotel.pool.available }
                     })}
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      currentHotel.pool.available ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    className={`px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+                      currentHotel.pool.available 
+                        ? 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-blue-400/25' 
+                        : 'bg-gradient-to-r from-gray-400 to-slate-400 text-white shadow-gray-400/25'
                     }`}
                   >
                     {currentHotel.pool.available ? 'Open' : 'Closed'}
-                  </button>
+                  </motion.button>
                 </div>
                 {currentHotel.pool.available && (
-                  <div className="flex space-x-4">
+                  <motion.div 
+                    className="flex space-x-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <div className="flex-1">
                       <label className="block text-sm text-gray-600 mb-1">Open Time</label>
                       <input
                         type="time"
                         value={currentHotel.pool.openTime}
                         onChange={(e) => updateTimeSlot('pool', 'openTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
                     <div className="flex-1">
@@ -486,41 +599,53 @@ export default function AdminDashboard() {
                         type="time"
                         value={currentHotel.pool.closeTime}
                         onChange={(e) => updateTimeSlot('pool', 'closeTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
 
               {/* Gym Section */}
-              <div className="border rounded-lg p-4">
+              <motion.div 
+                className="glass backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:shadow-lg transition-all duration-300"
+                whileHover={{ scale: 1.01 }}
+              >
                 <h4 className="font-semibold mb-3 flex items-center space-x-2">
                   <span>💪</span>
                   <span>Gym</span>
                 </h4>
                 <div className="flex items-center justify-between mb-3">
                   <span>Gym Available</span>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => updateHotelSettings(selectedHotel, {
                       gym: { ...currentHotel.gym, available: !currentHotel.gym.available }
                     })}
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      currentHotel.gym.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    className={`px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+                      currentHotel.gym.available 
+                        ? 'bg-gradient-to-r from-green-400 to-emerald-400 text-white shadow-green-400/25' 
+                        : 'bg-gradient-to-r from-red-400 to-pink-400 text-white shadow-red-400/25'
                     }`}
                   >
                     {currentHotel.gym.available ? 'Open' : 'Closed'}
-                  </button>
+                  </motion.button>
                 </div>
                 {currentHotel.gym.available && (
-                  <div className="flex space-x-4">
+                  <motion.div 
+                    className="flex space-x-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <div className="flex-1">
                       <label className="block text-sm text-gray-600 mb-1">Open Time</label>
                       <input
                         type="time"
                         value={currentHotel.gym.openTime}
                         onChange={(e) => updateTimeSlot('gym', 'openTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
                     <div className="flex-1">
@@ -529,13 +654,13 @@ export default function AdminDashboard() {
                         type="time"
                         value={currentHotel.gym.closeTime}
                         onChange={(e) => updateTimeSlot('gym', 'closeTime', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md"
+                        className="w-full px-3 py-2 glass backdrop-blur-sm border border-white/20 rounded-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           )}
 
           {activeTab === 'events' && (
@@ -843,7 +968,60 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-        </div>
+
+          {activeTab === 'attractions' && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold mb-4">Nearby Attractions Management</h3>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <h4 className="font-semibold text-yellow-800">Important: Database-Only Recommendations</h4>
+                    <p className="text-yellow-700 mt-1">
+                      The chatbot will ONLY recommend attractions that are added to this list. 
+                      It will not suggest any attractions from its general knowledge. 
+                      Make sure to add all attractions you want guests to know about.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-3">🚧 Attractions Management Coming Soon</h4>
+                <p className="text-blue-700 mb-3">
+                  The enhanced attractions management system is being prepared. This will include:
+                </p>
+                <ul className="text-blue-700 space-y-1 ml-4">
+                  <li>• Add/edit attractions with detailed information</li>
+                  <li>• Target specific guest types (couples, families, solo travelers)</li>
+                  <li>• Set weather conditions for each attraction</li>
+                  <li>• Manage booking requirements and contact information</li>
+                  <li>• Prioritize attractions for better recommendations</li>
+                </ul>
+                <p className="text-blue-700 mt-3">
+                  For now, attractions are managed through the database. 
+                  Contact your system administrator to add or modify attractions.
+                </p>
+              </div>
+
+              <div className="border rounded-lg p-4">
+                <h4 className="font-semibold mb-3">Current Attractions Database Schema</h4>
+                <div className="bg-gray-50 rounded p-3 text-sm font-mono">
+                  <p>• attraction_name - Name of the attraction</p>
+                  <p>• description - Detailed description</p>
+                  <p>• category - cultural, adventure, shopping, nature, entertainment</p>
+                  <p>• distance - Distance from hotel</p>
+                  <p>• price_range - Cost information</p>
+                  <p>• suitable_for_couples/families/solo/groups - Target audience</p>
+                  <p>• good_for_sunny/rainy/hot/mild/cool - Weather conditions</p>
+                  <p>• requires_booking - Whether booking is needed</p>
+                  <p>• priority_order - Display priority (higher = shown first)</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
 
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
           <div className="flex items-center justify-between">

@@ -1,12 +1,37 @@
 // RAG Knowledge Base Builder
 // Converts hotel data into structured knowledge for AI
 
+import { getPersonalizedAttractions, parseWeatherConditions, type GuestProfile } from './personalized-attractions'
+
 export function buildHotelKnowledge(
   hotelSettings: any,
   hotelData: any,
-  weather: any
+  weather: any,
+  guestProfile?: GuestProfile
 ): string {
   const knowledge: string[] = []
+
+  // Contact Information (Move to top for easy reference)
+  knowledge.push(`=== CONTACT INFORMATION ===`)
+  if (hotelSettings?.contact) {
+    if (hotelSettings.contact.phone) {
+      knowledge.push(`Front Desk Phone: ${hotelSettings.contact.phone}`)
+    }
+    if (hotelSettings.contact.email) {
+      knowledge.push(`Email: ${hotelSettings.contact.email}`)
+    }
+    if (hotelSettings.contact.emergencyPhone) {
+      knowledge.push(`Emergency Phone: ${hotelSettings.contact.emergencyPhone}`)
+    }
+  } else {
+    // Fallback contact info if not in settings
+    knowledge.push(`Front Desk Phone: Available at reception`)
+    knowledge.push(`Email: Available at reception`)
+  }
+  knowledge.push(`
+IMPORTANT: For bookings, reservations, or any services that require action, guests must contact the front desk directly.
+The AI assistant can ONLY provide information, not make bookings or arrangements.`)
+  knowledge.push('')
 
   // Hotel Basic Information
   if (hotelData) {
@@ -84,8 +109,8 @@ export function buildHotelKnowledge(
   }
 
   // Special Events
+  knowledge.push(`=== SPECIAL EVENTS ===`)
   if (hotelSettings?.specialEvents?.length > 0) {
-    knowledge.push(`=== SPECIAL EVENTS ===`)
     const today = new Date().toISOString().split('T')[0]
     
     // Today's events
@@ -116,19 +141,103 @@ export function buildHotelKnowledge(
         knowledge.push(`    Price: ${event.price || 'Free'}`)
       })
     }
+  } else {
+    knowledge.push(`No special events are currently scheduled.`)
+    knowledge.push(`For information about upcoming events, please contact the front desk.`)
+  }
+  knowledge.push('')
+
+  // Hotel Activities (from database)
+  if (hotelSettings?.hotelActivities && hotelSettings.hotelActivities.length > 0) {
+    knowledge.push(`=== HOTEL ACTIVITIES (INSIDE THE HOTEL) ===`)
+    
+    // Group by category
+    const byCategory: { [key: string]: any[] } = {}
+    hotelSettings.hotelActivities.forEach((activity: any) => {
+      if (!byCategory[activity.category]) {
+        byCategory[activity.category] = []
+      }
+      byCategory[activity.category].push(activity)
+    })
+    
+    Object.entries(byCategory).forEach(([category, activities]) => {
+      const categoryName = category.charAt(0).toUpperCase() + category.slice(1)
+      knowledge.push(`\n${categoryName} Activities:`)
+      activities.forEach((activity: any) => {
+        knowledge.push(`  - ${activity.activity_name}`)
+        if (activity.description) {
+          knowledge.push(`    ${activity.description}`)
+        }
+        if (activity.location) {
+          knowledge.push(`    Location: ${activity.location}`)
+        }
+      })
+    })
     knowledge.push('')
   }
 
-  // Activities
-  if (hotelData?.activities) {
-    knowledge.push(`=== ACTIVITIES ===`)
-    Object.entries(hotelData.activities).forEach(([type, activities]: [string, any]) => {
-      const categoryName = type.charAt(0).toUpperCase() + type.slice(1)
-      knowledge.push(`${categoryName} Activities:`)
-      activities.forEach((activity: string) => {
-        knowledge.push(`  - ${activity}`)
+  // Nearby Attractions (from database - personalized if guest profile available)
+  if (hotelSettings?.nearbyAttractions && hotelSettings.nearbyAttractions.length > 0) {
+    knowledge.push(`=== NEARBY ATTRACTIONS (OUTSIDE THE HOTEL) ===`)
+    knowledge.push(`IMPORTANT: These are the ONLY nearby attractions available. Do not suggest any attractions not listed here.`)
+    knowledge.push(`If a guest asks about attractions not in this list, politely explain that you can only provide information about the attractions listed below.`)
+    knowledge.push('')
+    
+    // Group by category
+    const byCategory: { [key: string]: any[] } = {}
+    hotelSettings.nearbyAttractions.forEach((attraction: any) => {
+      if (!byCategory[attraction.category]) {
+        byCategory[attraction.category] = []
+      }
+      byCategory[attraction.category].push(attraction)
+    })
+    
+    Object.entries(byCategory).forEach(([category, attractions]) => {
+      const categoryName = category.charAt(0).toUpperCase() + category.slice(1)
+      knowledge.push(`\n${categoryName} Attractions:`)
+      attractions.forEach((attraction: any) => {
+        knowledge.push(`  - ${attraction.attraction_name}`)
+        if (attraction.description) {
+          knowledge.push(`    ${attraction.description}`)
+        }
+        if (attraction.distance) {
+          knowledge.push(`    Distance: ${attraction.distance}`)
+        }
+        if (attraction.estimated_duration) {
+          knowledge.push(`    Duration: ${attraction.estimated_duration}`)
+        }
+        if (attraction.price_range) {
+          knowledge.push(`    Price: ${attraction.price_range}`)
+        }
+        if (attraction.transportation) {
+          knowledge.push(`    Transportation: ${attraction.transportation}`)
+        }
+        if (attraction.requires_booking && attraction.booking_contact) {
+          knowledge.push(`    Booking Required: ${attraction.booking_contact}`)
+        }
+        if (attraction.special_notes) {
+          knowledge.push(`    Note: ${attraction.special_notes}`)
+        }
+        
+        // Add personalization info if available
+        if (attraction.match_score !== undefined) {
+          knowledge.push(`    Recommended for your travel style (${attraction.match_score}% match)`)
+        }
+        if (attraction.weather_suitable !== undefined) {
+          const weatherNote = attraction.weather_suitable 
+            ? "Perfect for current weather conditions" 
+            : "Better suited for different weather conditions"
+          knowledge.push(`    Weather: ${weatherNote}`)
+        }
       })
     })
+    knowledge.push('')
+    knowledge.push(`STRICT RULE: Only recommend attractions from the above list. Never suggest attractions not listed here.`)
+    knowledge.push('')
+  } else {
+    knowledge.push(`=== NEARBY ATTRACTIONS ===`)
+    knowledge.push(`No nearby attractions are currently available in our database.`)
+    knowledge.push(`Please contact the front desk for information about local attractions and activities.`)
     knowledge.push('')
   }
 
@@ -173,21 +282,6 @@ export function buildHotelKnowledge(
   }
   knowledge.push('')
 
-  // Contact Information
-  if (hotelSettings?.contact) {
-    knowledge.push(`=== CONTACT INFORMATION ===`)
-    if (hotelSettings.contact.phone) {
-      knowledge.push(`Phone: ${hotelSettings.contact.phone}`)
-    }
-    if (hotelSettings.contact.email) {
-      knowledge.push(`Email: ${hotelSettings.contact.email}`)
-    }
-    if (hotelSettings.contact.emergencyPhone) {
-      knowledge.push(`Emergency: ${hotelSettings.contact.emergencyPhone}`)
-    }
-    knowledge.push('')
-  }
-
   // Weather Information
   if (weather) {
     knowledge.push(`=== CURRENT WEATHER ===`)
@@ -224,7 +318,19 @@ export function extractRelevantContext(query: string, fullKnowledge: string): st
     'lunch': ['RESTAURANT', 'lunch'],
     'dinner': ['RESTAURANT', 'dinner'],
     'event': ['SPECIAL EVENTS'],
-    'activity': ['ACTIVITIES'],
+    'activity': ['ACTIVITIES', 'HOTEL ACTIVITIES', 'NEARBY ATTRACTIONS'],
+    'activities': ['ACTIVITIES', 'HOTEL ACTIVITIES', 'NEARBY ATTRACTIONS'],
+    'nearby': ['NEARBY ATTRACTIONS'],
+    'attraction': ['NEARBY ATTRACTIONS'],
+    'attractions': ['NEARBY ATTRACTIONS'],
+    'things to do': ['ACTIVITIES', 'HOTEL ACTIVITIES', 'NEARBY ATTRACTIONS'],
+    'visit': ['NEARBY ATTRACTIONS'],
+    'see': ['NEARBY ATTRACTIONS'],
+    'explore': ['NEARBY ATTRACTIONS'],
+    'outside': ['NEARBY ATTRACTIONS'],
+    'around': ['NEARBY ATTRACTIONS'],
+    'area': ['NEARBY ATTRACTIONS'],
+    'local': ['NEARBY ATTRACTIONS'],
     'wifi': ['AMENITIES', 'wifi'],
     'parking': ['AMENITIES', 'parking'],
     'check': ['CHECK-IN/CHECK-OUT'],
@@ -262,4 +368,32 @@ export function extractRelevantContext(query: string, fullKnowledge: string): st
   }
   
   return relevantLines.length > 0 ? relevantLines.join('\n') : fullKnowledge
+}
+
+/**
+ * Build personalized hotel knowledge with attractions tailored to guest profile and weather
+ */
+export async function buildPersonalizedHotelKnowledge(
+  hotelSettings: any,
+  hotelData: any,
+  weather: any,
+  guestProfile: GuestProfile,
+  hotelId: string
+): Promise<string> {
+  // Get personalized attractions
+  const weatherConditions = parseWeatherConditions(weather)
+  const personalizedAttractions = await getPersonalizedAttractions(
+    hotelId,
+    guestProfile,
+    weatherConditions,
+    10 // Limit to top 10 recommendations
+  )
+  
+  // Replace the nearbyAttractions in hotelSettings with personalized ones
+  const enhancedHotelSettings = {
+    ...hotelSettings,
+    nearbyAttractions: personalizedAttractions
+  }
+  
+  return buildHotelKnowledge(enhancedHotelSettings, hotelData, weather, guestProfile)
 }
